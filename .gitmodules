@@ -1,0 +1,6 @@
+[submodule "external/common_backend"]
+	path = external/common_backend
+	url = https://github.com/RealmOfAesir/common_backend.git
+[submodule "external/uWebSockets"]
+	path = external/uWebSockets
+	url = https://github.com/uWebSockets/uWebSockets.git
