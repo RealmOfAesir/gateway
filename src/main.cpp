@@ -263,9 +263,7 @@ int main() {
 
     auto producer = common_injector.create<shared_ptr<ikafka_producer<false>>>();
     auto gateway_consumer = common_injector.create<unique_ptr<ikafka_consumer<false>>>();
-    auto backend_consumer = common_injector.create<shared_ptr<ikafka_consumer<false>>>();
-    gateway_consumer->start(config.broker_list, config.group_id, std::vector<std::string>{"server-" + to_string(config.server_id)});
-    backend_consumer->start(config.broker_list, config.group_id, std::vector<std::string>{"user_access_control_messages", "broadcast"});
+    gateway_consumer->start(config.broker_list, config.group_id, std::vector<std::string>{"server-" + to_string(config.server_id), "broadcast"});
     producer->start(config.broker_list);
     unordered_map<string, user_connection> connections;
 
@@ -320,7 +318,6 @@ int main() {
 
         producer->close();
         gateway_consumer->close();
-        backend_consumer->close();
 
         auto now = chrono::system_clock::now().time_since_epoch().count();
         auto wait_until = (chrono::system_clock::now() += 2000ms).time_since_epoch().count();
