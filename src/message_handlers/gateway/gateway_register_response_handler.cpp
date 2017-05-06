@@ -24,37 +24,36 @@
 using namespace std;
 using namespace roa;
 
-gateway_register_response_handler::gateway_register_response_handler(Config config,
-                                                                     std::unordered_map<std::string, user_connection> &connections)
-    : _config(config), _connections(connections) {
+gateway_register_response_handler::gateway_register_response_handler(Config config)
+    : _config(config) {
 
 }
 
-void gateway_register_response_handler::handle_message(std::unique_ptr<message<false> const> const &msg,
+void gateway_register_response_handler::handle_message(std::unique_ptr<binary_message const> const &msg,
                                                        STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
     if(!connection) {
         LOG(ERROR) << NAMEOF(gateway_register_response_handler::handle_message) << " received empty connection";
         return;
     }
 
-    if (auto response_msg = dynamic_cast<register_response_message<false> const *>(msg.get())) {
-        LOG(DEBUG) << NAMEOF(gateway_register_response_handler::handle_message) << "Got response message from backend";
+    if (auto response_msg = dynamic_cast<binary_register_response_message const *>(msg.get())) {
+        LOG(DEBUG) << NAMEOF(gateway_register_response_handler::handle_message) << " Got response message from backend";
 
         if(response_msg->error_number != 0) {
-            register_response_message<true> response{{false, 0, 0, 0}, 0, response_msg->error_number, response_msg->error_str};
+            json_register_response_message response{{false, 0, 0, 0}, 0, response_msg->error_number, response_msg->error_str};
             auto response_str = response.serialize();
             connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
         } else {
             connection->get().state = user_connection_state::LOGGED_IN;
             connection->get().admin_status = response_msg->admin_status;
-            register_response_message<true> response{{false, 0, 0, 0}, 0, 0, ""};
+            json_register_response_message response{{false, 0, 0, 0}, 0, 0, ""};
             auto response_str = response.serialize();
             connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
         }
 
     } else {
-        LOG(ERROR) << NAMEOF(gateway_register_response_handler::handle_message) << "Couldn't cast message to register_response_message";
-        register_response_message<true> response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
+        LOG(ERROR) << NAMEOF(gateway_register_response_handler::handle_message) << " Couldn't cast message to register_response_message";
+        json_register_response_message response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     }

@@ -17,6 +17,7 @@
 */
 
 #include "user_connection.h"
+#include <easylogging++.h>
 
 using namespace std;
 using namespace roa;
@@ -24,11 +25,11 @@ using namespace roa;
 atomic<int64_t> user_connection::idCounter;
 
 user_connection::user_connection(uWS::WebSocket<uWS::SERVER> *ws)
-        : state(UNKNOWN), ws(ws),id(idCounter.fetch_add(1, std::memory_order_relaxed)), username() {
+        : state(UNKNOWN), ws(ws), id(idCounter.fetch_add(1, std::memory_order_relaxed)), username() {
+    LOG(DEBUG) << "new connection " << id;
 }
 
 user_connection::user_connection(user_connection const &conn) : state(conn.state), ws(conn.ws), id(conn.id), username(conn.username) {
-
 }
 
 std::string user_connection::AddressToString(uS::Socket::Address &&a) {

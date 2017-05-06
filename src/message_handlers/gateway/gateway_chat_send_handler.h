@@ -23,15 +23,16 @@
 #include "../../config.h"
 
 namespace roa {
-    class gateway_register_response_handler : public imessage_handler<false> {
+    class gateway_chat_send_handler : public imessage_handler<false> {
     public:
-        gateway_register_response_handler(Config config);
-        ~gateway_register_response_handler() override = default;
+        gateway_chat_send_handler(Config config, std::shared_ptr<std::unordered_map<std::string, user_connection>> connections);
+        ~gateway_chat_send_handler() override = default;
 
         void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
 
-        static constexpr uint32_t message_id = REGISTER_RESPONSE_MESSAGE_TYPE;
+        static constexpr uint32_t message_id = CHAT_SEND_MESSAGE_TYPE;
     private:
         Config _config;
+        std::shared_ptr<std::unordered_map<std::string, user_connection>> _connections;
     };
 }

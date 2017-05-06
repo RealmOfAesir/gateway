@@ -35,12 +35,14 @@
 #include <exceptions.h>
 #include <roa_di.h>
 #include <macros.h>
+#include "src/message_handlers/gateway/gateway_chat_send_handler.h"
 #include "src/message_handlers/gateway/gateway_login_response_handler.h"
 #include "src/message_handlers/gateway/gateway_register_response_handler.h"
 #include "src/message_handlers/gateway/gateway_quit_handler.h"
 #include "message_handlers/client/client_admin_quit_handler.h"
 #include "message_handlers/client/client_login_handler.h"
 #include "message_handlers/client/client_register_handler.h"
+#include "message_handlers/client/client_chat_send_handler.h"
 #include "user_connection.h"
 #include "config.h"
 
@@ -156,19 +158,20 @@ Config parse_env_file() {
     return config;
 }
 
-unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikafka_producer<false>> producer, unordered_map<string, user_connection> &connections) {
+unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikafka_producer<false>> producer, shared_ptr<unordered_map<string, user_connection>> connections) {
     if(!producer) {
-        LOG(ERROR) << "[main:backend] one of the arguments are null";
-        throw runtime_error("[main:backend] one of the arguments are null");
+        LOG(ERROR) << "[main:uws] one of the arguments are null";
+        throw runtime_error("[main:uws] one of the arguments are null");
     }
 
-    return make_unique<thread>([=, &h, &connections]{
+    return make_unique<thread>([=, &h]{
         try {
             message_dispatcher<false> client_msg_dispatcher;
 
             client_msg_dispatcher.register_handler<client_admin_quit_handler>(config, producer);
-            client_msg_dispatcher.register_handler<client_login_handler>(config, producer, connections);
-            client_msg_dispatcher.register_handler<client_register_handler>(config, producer, connections);
+            client_msg_dispatcher.register_handler<client_login_handler>(config, producer);
+            client_msg_dispatcher.register_handler<client_register_handler>(config, producer);
+            client_msg_dispatcher.register_handler<client_chat_send_handler>(config, producer);
 
             h.onMessage([&](uWS::WebSocket<uWS::SERVER> *ws, char *recv_msg, size_t length, uWS::OpCode opCode) {
                 LOG(DEBUG) << "[main:uws] Got message from wss";
@@ -176,12 +179,12 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                     LOG(INFO) << "[main:uws] Got message from wss";
                     string str(recv_msg, length);
                     LOG(DEBUG) << str;
-                    unique_lock<mutex> lock(connectionMutex);
+                    lock_guard<mutex> lock(connectionMutex);
 
                     string key = user_connection::AddressToString(ws->getAddress());
-                    auto connection = connections.find(key);
+                    auto connection = connections->find(key);
 
-                    if(unlikely(connection == end(connections))) {
+                    if(unlikely(connection == end(*connections))) {
                         LOG(ERROR) << "[main:uws] got message from " << key << " without connection";
                         ws->terminate();
                         return;
@@ -196,7 +199,7 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                         LOG(ERROR) << "[main:uws] exception when deserializing message, disconnecting " << connection->second.state
                                    << ":" << connection->second.username << ":exception: " << typeid(e).name() << "-" << e.what();
 
-                        connections.erase(key);
+                        connections->erase(key);
                         ws->terminate();
                     }
                 } else {
@@ -207,22 +210,22 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
             h.onConnection([&connections](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest request) {
                 LOG(WARNING) << "[main:uws] Got a connection";
                 string key = user_connection::AddressToString(ws->getAddress());
-                unique_lock<mutex> lock(connectionMutex);
-                if(connections.find(key) != end(connections)) {
+                lock_guard<mutex> lock(connectionMutex);
+                if(connections->find(key) != end(*connections)) {
                     LOG(WARNING) << "[main:uws] Connection already present, closing this one";
                     ws->terminate();
                     return;
                 }
-                connections.insert(make_pair(key, user_connection(ws)));
+                connections->insert(make_pair(key, user_connection(ws)));
             });
 
             h.onDisconnection([&connections](uWS::WebSocket<uWS::SERVER> *ws, int code, char *message, size_t length) {
 
                 string key = user_connection::AddressToString(ws->getAddress());
-                unique_lock<mutex> lock(connectionMutex);
-                connections.erase(key);
+                lock_guard<mutex> lock(connectionMutex);
+                connections->erase(key);
 
-                LOG(WARNING) << "[main:uws] Got a disconnect, " << connections.size() << " connections remaining";
+                LOG(WARNING) << "[main:uws] Got a disconnect, " << connections->size() << " connections remaining";
             });
 
             h.onError([](int type) {
@@ -247,6 +250,52 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
     });
 }
 
+unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consumer<false>> consumer, shared_ptr<unordered_map<string, user_connection>> connections) {
+    if(!consumer) {
+        LOG(ERROR) << "[main:consumer] one of the arguments are null";
+        throw runtime_error("[main:consumer] one of the arguments are null");
+    }
+
+    return make_unique<thread>([=] {
+        consumer->start(config.broker_list, config.group_id, std::vector<std::string>{
+                "server-" + to_string(config.server_id),
+                "chat_messages",
+                "broadcast"});
+        message_dispatcher<false> server_gateway_msg_dispatcher;
+
+        server_gateway_msg_dispatcher.register_handler<gateway_quit_handler>(&quit);
+        server_gateway_msg_dispatcher.register_handler<gateway_login_response_handler>(config);
+        server_gateway_msg_dispatcher.register_handler<gateway_register_response_handler>(config);
+        server_gateway_msg_dispatcher.register_handler<gateway_chat_send_handler>(config, connections);
+
+        LOG(INFO) << "[main:consumer] starting consumer thread";
+
+        while (!quit) {
+            try {
+                auto msg = consumer->try_get_message(50);
+                if (get<1>(msg)) {
+                    lock_guard<mutex> lock(connectionMutex);
+                    LOG(INFO) << "[main:consumer] Got message from kafka";
+
+                    auto id = get<1>(msg)->sender.client_id;
+                    auto connection = find_if(begin(*connections), end(*connections), [id](auto &t) {
+                        return get<1>(t).id == id;
+                    });
+
+                    if (connection == end(*connections)) {
+                        LOG(DEBUG) << "[main:consumer] Got message for client_id " << id << " but no connection found";
+                        continue;
+                    }
+
+                    server_gateway_msg_dispatcher.trigger_handler(msg, make_optional(ref(get<1>(*connection))));
+                }
+            } catch (serialization_exception &e) {
+                cout << "[main:consumer] received exception " << e.what() << endl;
+            }
+        }
+    });
+}
+
 int main() {
     Config config;
     try {
@@ -262,43 +311,20 @@ int main() {
     auto common_injector = create_common_di_injector();
 
     auto producer = common_injector.create<shared_ptr<ikafka_producer<false>>>();
-    auto gateway_consumer = common_injector.create<unique_ptr<ikafka_consumer<false>>>();
-    gateway_consumer->start(config.broker_list, config.group_id, std::vector<std::string>{"server-" + to_string(config.server_id), "broadcast"});
-    producer->start(config.broker_list);
-    unordered_map<string, user_connection> connections;
+    auto consumer = common_injector.create<shared_ptr<ikafka_consumer<false>>>();
 
+    auto connections = make_shared<unordered_map<string, user_connection>>();
     uWS::Hub h;
 
     try {
-        auto uws_thread = create_uws_thread(config, h, producer, connections);
-        message_dispatcher<false> server_gateway_msg_dispatcher;
-
-        server_gateway_msg_dispatcher.register_handler<gateway_quit_handler>(&quit);
-        server_gateway_msg_dispatcher.register_handler<gateway_login_response_handler>(config, connections);
-        server_gateway_msg_dispatcher.register_handler<gateway_register_response_handler>(config, connections);
-
         LOG(INFO) << "[main] starting main thread";
+        producer->start(config.broker_list);
+        auto uws_thread = create_uws_thread(config, h, producer, connections);
+        auto consumer_thread = create_consumer_thread(config, consumer, connections);
 
         while (!quit) {
             try {
-                producer->poll(10);
-                auto msg = gateway_consumer->try_get_message(10);
-                if (get<1>(msg)) {
-                    unique_lock<mutex> lock(connectionMutex);
-                    LOG(INFO) << "[main] Got message from kafka";
-
-                    auto id = get<1>(msg)->sender.client_id;
-                    auto connection = find_if(begin(connections), end(connections), [id](auto &t) {
-                        return get<1>(t).id == id;
-                    });
-
-                    if (connection == end(connections)) {
-                        LOG(DEBUG) << "[main] Got message for client_id " << id << " but no connection found";
-                        continue;
-                    }
-
-                    server_gateway_msg_dispatcher.trigger_handler(msg, make_optional(ref(get<1>(*connection))));
-                }
+                producer->poll(50);
             } catch (serialization_exception &e) {
                 cout << "[main] received exception " << e.what() << endl;
             }
@@ -317,7 +343,7 @@ int main() {
         async.send();
 
         producer->close();
-        gateway_consumer->close();
+        consumer->close();
 
         auto now = chrono::system_clock::now().time_since_epoch().count();
         auto wait_until = (chrono::system_clock::now() += 2000ms).time_since_epoch().count();
@@ -328,6 +354,8 @@ int main() {
         }
 
         async.close();
+
+        consumer_thread->join();
 
         if(!uwsQuit) {
             uws_thread->detach();

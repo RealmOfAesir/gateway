@@ -27,16 +27,14 @@ namespace roa {
     class client_register_handler : public imessage_handler<false> {
     public:
         client_register_handler(Config config,
-                                std::shared_ptr<ikafka_producer<false>> producer,
-                                std::unordered_map<std::string, user_connection> &connections);
+                                std::shared_ptr<ikafka_producer<false>> producer);
         ~client_register_handler() override = default;
 
-        void handle_message(std::unique_ptr<message<false> const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
+        void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
 
         static constexpr uint32_t message_id = REGISTER_MESSAGE_TYPE;
     private:
         Config _config;
         std::shared_ptr<ikafka_producer<false>> _producer;
-        std::unordered_map<std::string, user_connection> &_connections;
     };
 }

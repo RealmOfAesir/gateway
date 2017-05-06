@@ -25,15 +25,13 @@
 namespace roa {
     class gateway_login_response_handler : public imessage_handler<false> {
     public:
-        gateway_login_response_handler(Config config,
-                                       std::unordered_map<std::string, user_connection> &connections);
+        gateway_login_response_handler(Config config);
         ~gateway_login_response_handler() override = default;
 
-        void handle_message(std::unique_ptr<message<false> const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
+        void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
 
         static constexpr uint32_t message_id = LOGIN_RESPONSE_MESSAGE_TYPE;
     private:
         Config _config;
-        std::unordered_map<std::string, user_connection> &_connections;
     };
 }

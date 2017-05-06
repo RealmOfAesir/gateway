@@ -26,32 +26,32 @@ using namespace std;
 using namespace roa;
 
 client_register_handler::client_register_handler(Config config,
-                                                 shared_ptr<ikafka_producer<false>> producer,
-                                                 unordered_map<string, user_connection> &connections)
-    : _config(config), _producer(producer), _connections(connections) {
+                                                 shared_ptr<ikafka_producer<false>> producer)
+    : _config(config), _producer(producer) {
 
 }
 
-void client_register_handler::handle_message(unique_ptr<message<false> const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
+void client_register_handler::handle_message(unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
     if(!connection) {
         LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " received empty connection";
         return;
     }
 
     if(connection->get().state != user_connection_state::UNKNOWN) {
-        LOG(DEBUG) << "Got register message from wss while not in unknown connection state";
-        register_response_message<true> response{{false, 0, 0, 0}, 0, -1, "Already logged in or awaiting response on register request."};
+        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got register message from wss while not in unknown connection state";
+        json_register_response_message response{{false, 0, 0, 0}, 0, -1, "Already logged in or awaiting response on register request."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
         return;
     }
 
-    if (auto message = dynamic_cast<register_message<false> const *>(msg.get())) {
-        LOG(DEBUG) << "Got quit message from wss, sending quit message to kafka";
-        this->_producer->enqueue_message("user_access_control_messages", register_message<false>{
+    if (auto message = dynamic_cast<binary_register_message const *>(msg.get())) {
+        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got register message from wss";
+        connection->get().username = message->username;
+        this->_producer->enqueue_message("user_access_control_messages", binary_register_message {
                 {
                     false,
-                    message->sender.client_id,
+                    connection->get().id,
                     _config.server_id,
                     0 // ANY
                 },
@@ -60,8 +60,8 @@ void client_register_handler::handle_message(unique_ptr<message<false> const> co
                 message->email
         });
     } else {
-        LOG(ERROR) << "Couldn't cast message to register_message";
-        register_response_message<true> response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
+        LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " Couldn't cast message to register_message";
+        json_register_response_message response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     }

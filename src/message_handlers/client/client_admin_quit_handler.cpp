@@ -29,7 +29,7 @@ client_admin_quit_handler::client_admin_quit_handler(Config config, std::shared_
 
 }
 
-void client_admin_quit_handler::handle_message(const unique_ptr<const message<false>> &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
+void client_admin_quit_handler::handle_message(const unique_ptr<const binary_message> &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
     if(!connection) {
         LOG(ERROR) << NAMEOF(client_admin_quit_handler::handle_message) << " received empty connection";
         return;
@@ -40,8 +40,8 @@ void client_admin_quit_handler::handle_message(const unique_ptr<const message<fa
         return;
     }
 
-    if (auto quit_msg = dynamic_cast<quit_message<false> const *>(msg.get())) {
-        LOG(WARNING) << "Got authorized quit message from wss, sending quit message to kafka";
+    if (auto quit_msg = dynamic_cast<binary_quit_message const *>(msg.get())) {
+        LOG(WARNING) << NAMEOF(client_admin_quit_handler::handle_message) << " Got authorized quit message from wss, sending quit message to kafka";
         this->_producer->enqueue_message("broadcast", quit_msg);
     }
 }

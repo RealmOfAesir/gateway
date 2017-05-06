@@ -16,16 +16,25 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "gateway_quit_handler.h"
+#pragma once
 
-using namespace roa;
+#include "../message_dispatcher.h"
+#include <kafka_producer.h>
+#include "src/user_connection.h"
+#include "../../config.h"
 
-gateway_quit_handler::gateway_quit_handler(std::atomic<bool> *quit) : _quit(quit) {
+namespace roa {
+    class client_chat_send_handler : public imessage_handler<false> {
+    public:
+        client_chat_send_handler(Config config,
+                             std::shared_ptr<ikafka_producer<false>> producer);
+        ~client_chat_send_handler() override = default;
 
+        void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
+
+        static constexpr uint32_t message_id = CHAT_SEND_MESSAGE_TYPE;
+    private:
+        Config _config;
+        std::shared_ptr<ikafka_producer<false>> _producer;
+    };
 }
-
-void gateway_quit_handler::handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
-    *this->_quit = true;
-}
-
-uint32_t constexpr gateway_quit_handler::message_id;
