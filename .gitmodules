@@ -4,3 +4,6 @@
 [submodule "external/uWebSockets"]
 	path = external/uWebSockets
 	url = https://github.com/uWebSockets/uWebSockets.git
+[submodule "external/libcuckoo"]
+	path = external/libcuckoo
+	url = https://github.com/efficient/libcuckoo.git

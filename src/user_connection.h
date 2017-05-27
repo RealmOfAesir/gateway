@@ -33,10 +33,11 @@ namespace roa {
         user_connection_state state;
         int8_t admin_status;
         uWS::WebSocket<uWS::SERVER> *ws;
-        int64_t id;
+        uint64_t id;
         std::string username;
         static std::atomic<int64_t> idCounter;
 
+        explicit user_connection();
         explicit user_connection(uWS::WebSocket<uWS::SERVER> *ws);
         user_connection(user_connection const &conn);
 

@@ -21,7 +21,7 @@
 #include <json.hpp>
 #include <kafka_consumer.h>
 #include <kafka_producer.h>
-#include <admin_messages/quit_message.h>
+#include <admin_messages/admin_quit_message.h>
 
 #include <signal.h>
 #include <string>
@@ -31,10 +31,10 @@
 #include <thread>
 #include <unordered_map>
 #include <atomic>
-#include <mutex>
 #include <exceptions.h>
 #include <roa_di.h>
 #include <macros.h>
+#include <libcuckoo/cuckoohash_map.hh>
 #include "src/message_handlers/gateway/gateway_chat_send_handler.h"
 #include "src/message_handlers/gateway/gateway_login_response_handler.h"
 #include "src/message_handlers/gateway/gateway_register_response_handler.h"
@@ -60,7 +60,6 @@ INITIALIZE_EASYLOGGINGPP
 
 atomic<bool> quit{false};
 atomic<bool> uwsQuit{false};
-mutex connectionMutex;
 
 void on_sigint(int sig) {
     quit = true;
@@ -158,7 +157,7 @@ Config parse_env_file() {
     return config;
 }
 
-unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikafka_producer<false>> producer, shared_ptr<unordered_map<string, user_connection>> connections) {
+unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikafka_producer<false>> producer, shared_ptr<cuckoohash_map<string, user_connection>> connections) {
     if(!producer) {
         LOG(ERROR) << "[main:uws] one of the arguments are null";
         throw runtime_error("[main:uws] one of the arguments are null");
@@ -179,12 +178,11 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                     LOG(INFO) << "[main:uws] Got message from wss";
                     string str(recv_msg, length);
                     LOG(DEBUG) << str;
-                    lock_guard<mutex> lock(connectionMutex);
+                    user_connection connection;
 
                     string key = user_connection::AddressToString(ws->getAddress());
-                    auto connection = connections->find(key);
 
-                    if(unlikely(connection == end(*connections))) {
+                    if(unlikely(!connections->find(key, connection))) {
                         LOG(ERROR) << "[main:uws] got message from " << key << " without connection";
                         ws->terminate();
                         return;
@@ -193,11 +191,11 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                     try {
                         auto msg = message<true>::deserialize<false>(str);
                         if (get<1>(msg)) {
-                            client_msg_dispatcher.trigger_handler(msg, make_optional(ref(connection->second)));
+                            client_msg_dispatcher.trigger_handler(msg, make_optional(ref(connection)));
                         }
                     } catch(const std::exception& e) {
-                        LOG(ERROR) << "[main:uws] exception when deserializing message, disconnecting " << connection->second.state
-                                   << ":" << connection->second.username << ":exception: " << typeid(e).name() << "-" << e.what();
+                        LOG(ERROR) << "[main:uws] exception when deserializing message, disconnecting " << connection.state
+                                   << ":" << connection.username << ":exception: " << typeid(e).name() << "-" << e.what();
 
                         connections->erase(key);
                         ws->terminate();
@@ -210,19 +208,17 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
             h.onConnection([&connections](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest request) {
                 LOG(WARNING) << "[main:uws] Got a connection";
                 string key = user_connection::AddressToString(ws->getAddress());
-                lock_guard<mutex> lock(connectionMutex);
-                if(connections->find(key) != end(*connections)) {
+                if(connections->contains(key)) {
                     LOG(WARNING) << "[main:uws] Connection already present, closing this one";
                     ws->terminate();
                     return;
                 }
-                connections->insert(make_pair(key, user_connection(ws)));
+                connections->insert(key, user_connection(ws));
             });
 
             h.onDisconnection([&connections](uWS::WebSocket<uWS::SERVER> *ws, int code, char *message, size_t length) {
 
                 string key = user_connection::AddressToString(ws->getAddress());
-                lock_guard<mutex> lock(connectionMutex);
                 connections->erase(key);
 
                 LOG(WARNING) << "[main:uws] Got a disconnect, " << connections->size() << " connections remaining";
@@ -250,7 +246,7 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
     });
 }
 
-unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consumer<false>> consumer, shared_ptr<unordered_map<string, user_connection>> connections) {
+unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consumer<false>> consumer, shared_ptr<cuckoohash_map<string, user_connection>> connections) {
     if(!consumer) {
         LOG(ERROR) << "[main:consumer] one of the arguments are null";
         throw runtime_error("[main:consumer] one of the arguments are null");
@@ -274,20 +270,24 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
             try {
                 auto msg = consumer->try_get_message(50);
                 if (get<1>(msg)) {
-                    lock_guard<mutex> lock(connectionMutex);
                     LOG(INFO) << "[main:consumer] Got message from kafka";
 
                     auto id = get<1>(msg)->sender.client_id;
-                    auto connection = find_if(begin(*connections), end(*connections), [id](auto &t) {
+                    auto locked_table = (*connections).lock_table();
+                    auto connection = find_if(begin(locked_table), end(locked_table), [id](auto &t) {
                         return get<1>(t).id == id;
                     });
 
-                    if (connection == end(*connections)) {
+                    if (connection == end(locked_table)) {
                         LOG(DEBUG) << "[main:consumer] Got message for client_id " << id << " but no connection found";
                         continue;
                     }
 
+                    locked_table.unlock();
+
                     server_gateway_msg_dispatcher.trigger_handler(msg, make_optional(ref(get<1>(*connection))));
+
+                    LOG(DEBUG) << "done handling message";
                 }
             } catch (serialization_exception &e) {
                 cout << "[main:consumer] received exception " << e.what() << endl;
@@ -313,7 +313,7 @@ int main() {
     auto producer = common_injector.create<shared_ptr<ikafka_producer<false>>>();
     auto consumer = common_injector.create<shared_ptr<ikafka_consumer<false>>>();
 
-    auto connections = make_shared<unordered_map<string, user_connection>>();
+    auto connections = make_shared<cuckoohash_map<string, user_connection>>();
     uWS::Hub h;
 
     try {
@@ -344,27 +344,35 @@ int main() {
 
         producer->close();
         consumer->close();
+        LOG(ERROR) << "closed kafka connections";
 
         auto now = chrono::system_clock::now().time_since_epoch().count();
         auto wait_until = (chrono::system_clock::now() += 2000ms).time_since_epoch().count();
 
         while (!uwsQuit && now < wait_until) {
+            LOG(ERROR) << "waiting for uws";
             this_thread::sleep_for(100ms);
             now = chrono::system_clock::now().time_since_epoch().count();
         }
 
+        LOG(ERROR) << "closing async";
         async.close();
 
+        LOG(ERROR) << "joining consumer thread";
         consumer_thread->join();
 
         if(!uwsQuit) {
+            LOG(ERROR) << "detaching uws thread";
             uws_thread->detach();
         } else {
+            LOG(ERROR) << "joining uws thread";
             uws_thread->join();
         }
     } catch (const runtime_error& e) {
         LOG(ERROR) << "[main] error: " << typeid(e).name() << "-" << e.what();
     }
+
+    LOG(ERROR) << "done";
 
     return 0;
 }

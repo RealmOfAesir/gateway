@@ -7,4 +7,5 @@ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
 make -j$CPUS
 cd $DIR/external/uWebSockets
 make
+#libcuckoo is header only
 cd $DIR

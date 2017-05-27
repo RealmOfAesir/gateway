@@ -57,7 +57,8 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
                 },
                 message->username,
                 message->password,
-                message->email
+                message->email,
+                connection->get().ws->getAddress().address
         });
     } else {
         LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " Couldn't cast message to register_message";

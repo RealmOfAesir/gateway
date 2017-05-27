@@ -28,6 +28,7 @@ include_directories("${CMAKE_SOURCE_DIR}/external/common_backend/external/common
 include_directories("${CMAKE_SOURCE_DIR}/external/common_backend/external/common/external/di/include")
 include_directories("${CMAKE_SOURCE_DIR}/external/common_backend/external/libpqxx/include")
 include_directories("${CMAKE_SOURCE_DIR}/external/uWebSockets/src")
+include_directories("${CMAKE_SOURCE_DIR}/external/libcuckoo")
 include_directories("${CMAKE_SOURCE_DIR}/external/common_backend/external/common/external/json/src")
 
 find_library(LIBRDKAFKA_LIBRARY rdkafka HINTS ${CMAKE_SOURCE_DIR}/external/common_backend/external/librdkafka/src)

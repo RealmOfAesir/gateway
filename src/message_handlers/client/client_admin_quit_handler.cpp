@@ -18,7 +18,7 @@
 
 #include "client_admin_quit_handler.h"
 #include <macros.h>
-#include <admin_messages/quit_message.h>
+#include <admin_messages/admin_quit_message.h>
 #include <easylogging++.h>
 
 using namespace std;

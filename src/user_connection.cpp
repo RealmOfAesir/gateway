@@ -24,6 +24,11 @@ using namespace roa;
 
 atomic<int64_t> user_connection::idCounter;
 
+user_connection::user_connection()
+        : state(UNKNOWN), ws(nullptr), id(0), username() {
+    LOG(DEBUG) << "new connection " << id;
+}
+
 user_connection::user_connection(uWS::WebSocket<uWS::SERVER> *ws)
         : state(UNKNOWN), ws(ws), id(idCounter.fetch_add(1, std::memory_order_relaxed)), username() {
     LOG(DEBUG) << "new connection " << id;

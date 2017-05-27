@@ -25,7 +25,7 @@
 using namespace std;
 using namespace roa;
 
-gateway_chat_send_handler::gateway_chat_send_handler(Config config, shared_ptr<unordered_map<string, user_connection>> connections)
+gateway_chat_send_handler::gateway_chat_send_handler(Config config, shared_ptr<cuckoohash_map<string, user_connection>> connections)
         : _config(config), _connections(connections) {
     if(!_connections) {
         LOG(ERROR) << NAMEOF(gateway_chat_send_handler::handle_message) << " one of the arguments are null";
@@ -41,22 +41,23 @@ void gateway_chat_send_handler::handle_message(std::unique_ptr<binary_message co
         json_chat_receive_message chat_msg{{false, 0, 0, 0}, response_msg->from_username, response_msg->target, response_msg->message};
         auto response_str = chat_msg.serialize();
 
+        auto locked_table = (*_connections).lock_table();
         if(response_msg->target == "all") {
-            for(auto& conn : *_connections) {
+            for(auto& conn : locked_table) {
                 if(get<1>(conn).state == user_connection_state::LOGGED_IN) {
                     get<1>(conn).ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
                 }
             }
         } else {
-            auto user_connection = find_if(cbegin(*_connections), cend(*_connections), [&](auto& t) {
+            auto user_connection = find_if(cbegin(locked_table), cend(locked_table), [&](auto& t) {
                 return get<1>(t).username == response_msg->target && get<1>(t).state == user_connection_state ::LOGGED_IN;
             });
 
-            if(user_connection != cend(*_connections)) {
+            if(user_connection != cend(locked_table)) {
                 user_connection->second.ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
             }
         }
-
+        locked_table.unlock();
     } else {
         LOG(ERROR) << NAMEOF(gateway_chat_send_handler::handle_message) << " Couldn't cast message to chat_send_message";
     }

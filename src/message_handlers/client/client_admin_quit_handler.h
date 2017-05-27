@@ -22,6 +22,8 @@
 #include <kafka_producer.h>
 #include "../../config.h"
 
+#include <admin_messages/admin_quit_message.h>
+
 namespace roa {
     class client_admin_quit_handler : public imessage_handler<false> {
     public:
@@ -30,7 +32,7 @@ namespace roa {
 
         void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
 
-        static constexpr uint32_t message_id = ADMIN_QUIT_MESSAGE_TYPE;
+        static constexpr uint32_t message_id = json_quit_message::id;
     private:
         Config _config;
         std::shared_ptr<ikafka_producer<false>> _producer;

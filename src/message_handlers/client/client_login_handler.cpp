@@ -56,7 +56,8 @@ void client_login_handler::handle_message(unique_ptr<binary_message const> const
                     0 // ANY
                 },
                 message->username,
-                message->password
+                message->password,
+                connection->get().ws->getAddress().address
         });
     } else {
         LOG(ERROR) << NAMEOF(client_login_handler::handle_message) << " Couldn't cast message to login_message";
