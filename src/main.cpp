@@ -38,6 +38,7 @@
 #include "src/message_handlers/gateway/gateway_chat_send_handler.h"
 #include "src/message_handlers/gateway/gateway_login_response_handler.h"
 #include "src/message_handlers/gateway/gateway_register_response_handler.h"
+#include "src/message_handlers/gateway/gateway_error_response_handler.h"
 #include "src/message_handlers/gateway/gateway_quit_handler.h"
 #include "message_handlers/client/client_admin_quit_handler.h"
 #include "message_handlers/client/client_login_handler.h"
@@ -264,6 +265,7 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
         server_gateway_msg_dispatcher.register_handler<gateway_login_response_handler>(config);
         server_gateway_msg_dispatcher.register_handler<gateway_register_response_handler>(config);
         server_gateway_msg_dispatcher.register_handler<gateway_chat_send_handler>(config, connections);
+        server_gateway_msg_dispatcher.register_handler<gateway_error_response_handler>(config);
 
         LOG(INFO) << NAMEOF(create_consumer_thread) << " starting consumer thread";
 
@@ -276,7 +278,7 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
                     auto id = get<1>(msg)->sender.client_id;
                     auto locked_table = (*connections).lock_table();
                     auto connection = find_if(begin(locked_table), end(locked_table), [id](auto &t) {
-                        return get<1>(t).id == id;
+                        return get<1>(t).connection_id == id;
                     });
 
                     if (connection == end(locked_table)) {

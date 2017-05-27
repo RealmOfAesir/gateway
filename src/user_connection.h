@@ -29,12 +29,23 @@ namespace roa {
         LOGGED_IN
     };
 
+    struct player_character {
+        uint64_t id;
+        uint32_t server_id;
+        std::string player_name;
+        std::string map_name;
+        std::string world_name;
+    };
+
     struct user_connection {
         user_connection_state state;
         int8_t admin_status;
         uWS::WebSocket<uWS::SERVER> *ws;
-        uint64_t id;
+        uint64_t connection_id;
         std::string username;
+        uint64_t user_id;
+        uint64_t player_id;
+        std::vector<player_character> player_characters;
         static std::atomic<uint64_t> idCounter;
 
         explicit user_connection();

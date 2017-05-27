@@ -19,8 +19,7 @@
 #include "client_login_handler.h"
 #include <macros.h>
 #include <easylogging++.h>
-#include <messages/user_access_control/login_message.h>
-#include <messages/user_access_control/login_response_message.h>
+#include <messages/error_response_message.h>
 
 using namespace std;
 using namespace roa;
@@ -32,14 +31,14 @@ client_login_handler::client_login_handler(Config config,
 }
 
 void client_login_handler::handle_message(unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
-    if(!connection) {
+    if(unlikely(!connection)) {
         LOG(ERROR) << NAMEOF(client_login_handler::handle_message) << " received empty connection";
         return;
     }
 
     if(connection->get().state != user_connection_state::UNKNOWN) {
-        LOG(DEBUG) << NAMEOF(client_login_handler::handle_message) << " Got register message from wss while not in unknown connection state";
-        json_login_response_message response{{false, 0, 0, 0}, 0, -1, "Already logged in or awaiting response on register request."};
+        LOG(DEBUG) << NAMEOF(client_login_handler::handle_message) << " Got binary_login_message from wss while not in unknown connection state";
+        json_error_response_message response{{false, 0, 0, 0}, -1, "Already logged in or awaiting response on register request."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
         return;
@@ -51,13 +50,13 @@ void client_login_handler::handle_message(unique_ptr<binary_message const> const
     }
 
     if (auto message = dynamic_cast<binary_login_message const *>(msg.get())) {
-        LOG(DEBUG) << NAMEOF(client_login_handler::handle_message) << " Got login message from wss";
+        LOG(DEBUG) << NAMEOF(client_login_handler::handle_message) << " Got binary_login_message from wss";
         connection->get().username = message->username;
         connection->get().state = user_connection_state::REGISTERING_OR_LOGGING_IN;
         this->_producer->enqueue_message("user_access_control_messages", binary_login_message {
                 {
                     false,
-                    connection->get().id,
+                    connection->get().connection_id,
                     _config.server_id,
                     0 // ANY
                 },
@@ -66,8 +65,8 @@ void client_login_handler::handle_message(unique_ptr<binary_message const> const
                 connection->get().ws->getAddress().address
         });
     } else {
-        LOG(ERROR) << NAMEOF(client_login_handler::handle_message) << " Couldn't cast message to login_message";
-        json_login_response_message response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
+        LOG(ERROR) << NAMEOF(client_login_handler::handle_message) << " Couldn't cast message to binary_login_message";
+        json_error_response_message response{{false, 0, 0, 0}, -1, "Something went wrong."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     }

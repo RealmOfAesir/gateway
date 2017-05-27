@@ -27,7 +27,7 @@
 namespace roa {
     class gateway_register_response_handler : public imessage_handler<false> {
     public:
-        gateway_register_response_handler(Config config);
+        explicit gateway_register_response_handler(Config config);
         ~gateway_register_response_handler() override = default;
 
         void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;

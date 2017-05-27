@@ -28,7 +28,7 @@
 namespace roa {
     class gateway_chat_send_handler : public imessage_handler<false> {
     public:
-        gateway_chat_send_handler(Config config, std::shared_ptr<cuckoohash_map<std::string, user_connection>> connections);
+        explicit gateway_chat_send_handler(Config config, std::shared_ptr<cuckoohash_map<std::string, user_connection>> connections);
         ~gateway_chat_send_handler() override = default;
 
         void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;

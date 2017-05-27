@@ -28,7 +28,7 @@
 namespace roa {
     class client_register_handler : public imessage_handler<false> {
     public:
-        client_register_handler(Config config,
+        explicit client_register_handler(Config config,
                                 std::shared_ptr<ikafka_producer<false>> producer);
         ~client_register_handler() override = default;
 

@@ -19,7 +19,6 @@
 #include "gateway_chat_send_handler.h"
 #include <macros.h>
 #include <easylogging++.h>
-#include <messages/chat/chat_send_message.h>
 #include <messages/chat/chat_receive_message.h>
 
 using namespace std;

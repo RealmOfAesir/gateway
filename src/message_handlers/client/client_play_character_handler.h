@@ -23,18 +23,18 @@
 #include "src/user_connection.h"
 #include "../../config.h"
 
-#include <messages/chat/chat_send_message.h>
+#include <messages/user_access_control/play_character_message.h>
 
 namespace roa {
-    class client_chat_send_handler : public imessage_handler<false> {
+    class client_play_character_handler : public imessage_handler<false> {
     public:
-        explicit client_chat_send_handler(Config config,
+        explicit client_play_character_handler(Config config,
                              std::shared_ptr<ikafka_producer<false>> producer);
-        ~client_chat_send_handler() override = default;
+        ~client_play_character_handler() override = default;
 
         void handle_message(std::unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) override;
 
-        static constexpr uint32_t message_id = json_chat_send_message::id;
+        static constexpr uint32_t message_id = json_play_character_message::id;
     private:
         Config _config;
         std::shared_ptr<ikafka_producer<false>> _producer;

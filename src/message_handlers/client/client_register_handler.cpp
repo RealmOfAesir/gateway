@@ -19,8 +19,7 @@
 #include "client_register_handler.h"
 #include <macros.h>
 #include <easylogging++.h>
-#include <messages/user_access_control/register_message.h>
-#include <messages/user_access_control/register_response_message.h>
+#include <messages/error_response_message.h>
 
 using namespace std;
 using namespace roa;
@@ -32,14 +31,14 @@ client_register_handler::client_register_handler(Config config,
 }
 
 void client_register_handler::handle_message(unique_ptr<binary_message const> const &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
-    if(!connection) {
+    if(unlikely(!connection)) {
         LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " received empty connection";
         return;
     }
 
     if(connection->get().state != user_connection_state::UNKNOWN) {
-        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got register message from wss while not in unknown connection state";
-        json_register_response_message response{{false, 0, 0, 0}, 0, -1, "Already logged in or awaiting response on register request."};
+        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got binary_register_message from wss while not in unknown connection state";
+        json_error_response_message response{{false, 0, 0, 0}, -1, "Already logged in or awaiting response on register request."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
         return;
@@ -51,13 +50,13 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
     }
 
     if (auto message = dynamic_cast<binary_register_message const *>(msg.get())) {
-        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got register message from wss";
+        LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got binary_register_message from wss";
         connection->get().username = message->username;
         connection->get().state = user_connection_state::REGISTERING_OR_LOGGING_IN;
         this->_producer->enqueue_message("user_access_control_messages", binary_register_message {
                 {
                     false,
-                    connection->get().id,
+                    connection->get().connection_id,
                     _config.server_id,
                     0 // ANY
                 },
@@ -67,8 +66,8 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
                 connection->get().ws->getAddress().address
         });
     } else {
-        LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " Couldn't cast message to register_message";
-        json_register_response_message response{{false, 0, 0, 0}, 0, -1, "Something went wrong."};
+        LOG(ERROR) << NAMEOF(client_register_handler::handle_message) << " Couldn't cast message to binary_register_message";
+        json_error_response_message response{{false, 0, 0, 0}, -1, "Something went wrong."};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     }

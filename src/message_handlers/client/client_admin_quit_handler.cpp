@@ -18,7 +18,6 @@
 
 #include "client_admin_quit_handler.h"
 #include <macros.h>
-#include <admin_messages/admin_quit_message.h>
 #include <easylogging++.h>
 
 using namespace std;
@@ -30,7 +29,7 @@ client_admin_quit_handler::client_admin_quit_handler(Config config, std::shared_
 }
 
 void client_admin_quit_handler::handle_message(const unique_ptr<const binary_message> &msg, STD_OPTIONAL<std::reference_wrapper<user_connection>> connection) {
-    if(!connection) {
+    if(unlikely(!connection)) {
         LOG(ERROR) << NAMEOF(client_admin_quit_handler::handle_message) << " received empty connection";
         return;
     }
@@ -41,7 +40,7 @@ void client_admin_quit_handler::handle_message(const unique_ptr<const binary_mes
     }
 
     if (auto quit_msg = dynamic_cast<binary_quit_message const *>(msg.get())) {
-        LOG(WARNING) << NAMEOF(client_admin_quit_handler::handle_message) << " Got authorized quit message from wss, sending quit message to kafka";
+        LOG(WARNING) << NAMEOF(client_admin_quit_handler::handle_message) << " Got authorized binary_quit_message from wss, sending quit message to kafka";
         this->_producer->enqueue_message("broadcast", quit_msg);
     }
 }
