@@ -46,7 +46,7 @@ void client_get_characters_handler::handle_message(unique_ptr<binary_message con
 
     if (auto message = dynamic_cast<binary_get_characters_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(client_get_characters_handler::handle_message) << " Got binary_get_characters_message from wss";
-        this->_producer->enqueue_message("user_access_control_messages", binary_get_characters_message {
+        this->_producer->enqueue_message("world_messages", binary_get_characters_message {
                 {
                         false,
                         connection->get().connection_id,

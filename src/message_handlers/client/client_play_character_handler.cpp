@@ -57,7 +57,7 @@ void client_play_character_handler::handle_message(unique_ptr<binary_message con
         }
 
         LOG(DEBUG) << NAMEOF(client_play_character_handler::handle_message) << " Got binary_play_character_message from wss";
-        this->_producer->enqueue_message("world-" + to_string(player->server_id), binary_play_character_message {
+        this->_producer->enqueue_message("server-" + to_string(player->server_id), binary_play_character_message {
                 {
                         false,
                         connection->get().connection_id,

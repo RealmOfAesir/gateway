@@ -53,7 +53,7 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
         LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got binary_register_message from wss";
         connection->get().username = message->username;
         connection->get().state = user_connection_state::REGISTERING_OR_LOGGING_IN;
-        this->_producer->enqueue_message("user_access_control_messages", binary_register_message {
+        this->_producer->enqueue_message("backend_messages", binary_register_message {
                 {
                     false,
                     connection->get().connection_id,
