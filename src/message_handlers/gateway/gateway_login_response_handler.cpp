@@ -39,7 +39,12 @@ void gateway_login_response_handler::handle_message(std::unique_ptr<binary_messa
     if (auto response_msg = dynamic_cast<binary_login_response_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(gateway_login_response_handler::handle_message) << " Got response message from backend";
 
-        if(response_msg->error_number != 0) {
+        if(response_msg->error_number == -2) {
+            json_login_response_message response{{false, 0, 0, 0}, 0, response_msg->error_number, response_msg->error_str};
+            auto response_str = response.serialize();
+            connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
+            connection->get().ws->terminate();
+        } else if(response_msg->error_number != 0) {
             json_login_response_message response{{false, 0, 0, 0}, 0, response_msg->error_number, response_msg->error_str};
             auto response_str = response.serialize();
             connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
