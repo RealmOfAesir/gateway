@@ -35,7 +35,7 @@ namespace roa {
         uWS::WebSocket<uWS::SERVER> *ws;
         uint64_t id;
         std::string username;
-        static std::atomic<int64_t> idCounter;
+        static std::atomic<uint64_t> idCounter;
 
         explicit user_connection();
         explicit user_connection(uWS::WebSocket<uWS::SERVER> *ws);

@@ -18,23 +18,25 @@
 
 #include "user_connection.h"
 #include <easylogging++.h>
+#include <external/common_backend/external/common/src/macros.h>
 
 using namespace std;
 using namespace roa;
 
-atomic<int64_t> user_connection::idCounter;
+atomic<uint64_t> user_connection::idCounter;
 
 user_connection::user_connection()
-        : state(UNKNOWN), ws(nullptr), id(0), username() {
-    LOG(DEBUG) << "new connection " << id;
+        : state(UNKNOWN), admin_status(0), ws(nullptr), id(0), username() {
+    LOG(DEBUG) << NAMEOF(user_connection::user_connection) << " new connection " << id;
 }
 
 user_connection::user_connection(uWS::WebSocket<uWS::SERVER> *ws)
-        : state(UNKNOWN), ws(ws), id(idCounter.fetch_add(1, std::memory_order_relaxed)), username() {
-    LOG(DEBUG) << "new connection " << id;
+        : state(UNKNOWN), admin_status(0), ws(ws), id(idCounter.fetch_add(1, std::memory_order_relaxed)), username() {
+    LOG(DEBUG) << NAMEOF(user_connection::user_connection) << " new connection " << id;
 }
 
-user_connection::user_connection(user_connection const &conn) : state(conn.state), ws(conn.ws), id(conn.id), username(conn.username) {
+user_connection::user_connection(user_connection const &conn)
+        : state(conn.state), admin_status(conn.admin_status), ws(conn.ws), id(conn.id), username(conn.username) {
 }
 
 std::string user_connection::AddressToString(uS::Socket::Address &&a) {

@@ -70,7 +70,7 @@ void init_extras() noexcept {
     signal(SIGINT, on_sigint);
 }
 
-void init_logger(Config const config) noexcept {
+void init_logger(Config const & config) noexcept {
     el::Configurations defaultConf;
     defaultConf.setGlobally(el::ConfigurationType::Format, "%datetime %level: %msg");
     if(!config.debug_level.empty()) {
@@ -91,7 +91,7 @@ void init_logger(Config const config) noexcept {
         }
     }
     el::Loggers::reconfigureAllLoggers(defaultConf);
-    LOG(INFO) << "debug level: " << config.debug_level;
+    LOG(INFO) << NAMEOF(init_logger) << " debug level: " << config.debug_level;
 }
 
 
@@ -101,7 +101,7 @@ Config parse_env_file() {
     ifstream env(".env");
 
     if(!env) {
-        LOG(ERROR) << "[main] no .env file found. Please make one.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " no .env file found. Please make one.";
         exit(1);
     }
 
@@ -117,40 +117,40 @@ Config parse_env_file() {
     try {
         config.broker_list = env_json["BROKER_LIST"];
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] BROKER_LIST missing in .env file.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " BROKER_LIST missing in .env file.";
         exit(1);
     }
 
     try {
         config.group_id = env_json["GROUP_ID"];
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] GROUP_ID missing in .env file.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " GROUP_ID missing in .env file.";
         exit(1);
     }
 
     try {
         config.server_id = env_json["SERVER_ID"];
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] SERVER_ID missing in .env file.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " SERVER_ID missing in .env file.";
         exit(1);
     }
 
     if(config.server_id == 0) {
-        LOG(ERROR) << "[main] SERVER_ID has to be greater than 0";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " SERVER_ID has to be greater than 0";
         exit(1);
     }
 
     try {
         config.connection_string = env_json["CONNECTION_STRING"];
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] CONNECTION_STRING missing in .env file.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " CONNECTION_STRING missing in .env file.";
         exit(1);
     }
 
     try {
         config.debug_level = env_json["DEBUG_LEVEL"];
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] DEBUG_LEVEL missing in .env file.";
+        LOG(ERROR) << NAMEOF(parse_env_file) << " DEBUG_LEVEL missing in .env file.";
         exit(1);
     }
 
@@ -159,7 +159,7 @@ Config parse_env_file() {
 
 unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikafka_producer<false>> producer, shared_ptr<cuckoohash_map<string, user_connection>> connections) {
     if(!producer) {
-        LOG(ERROR) << "[main:uws] one of the arguments are null";
+        LOG(ERROR) << NAMEOF(create_uws_thread) << " one of the arguments are null";
         throw runtime_error("[main:uws] one of the arguments are null");
     }
 
@@ -173,17 +173,17 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
             client_msg_dispatcher.register_handler<client_chat_send_handler>(config, producer);
 
             h.onMessage([&](uWS::WebSocket<uWS::SERVER> *ws, char *recv_msg, size_t length, uWS::OpCode opCode) {
-                LOG(DEBUG) << "[main:uws] Got message from wss";
+                LOG(DEBUG) << NAMEOF(create_uws_thread) << " Got message from wss";
                 if(opCode == uWS::OpCode::TEXT) {
-                    LOG(INFO) << "[main:uws] Got message from wss";
+                    LOG(INFO) << NAMEOF(create_uws_thread) << " Got message from wss";
                     string str(recv_msg, length);
-                    LOG(DEBUG) << str;
+                    LOG(DEBUG) << NAMEOF(create_uws_thread) << " " << str;
                     user_connection connection;
 
                     string key = user_connection::AddressToString(ws->getAddress());
 
                     if(unlikely(!connections->find(key, connection))) {
-                        LOG(ERROR) << "[main:uws] got message from " << key << " without connection";
+                        LOG(ERROR) << NAMEOF(create_uws_thread) << " got message from " << key << " without connection";
                         ws->terminate();
                         return;
                     }
@@ -194,7 +194,8 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                             client_msg_dispatcher.trigger_handler(msg, make_optional(ref(connection)));
                         }
                     } catch(const std::exception& e) {
-                        LOG(ERROR) << "[main:uws] exception when deserializing message, disconnecting " << connection.state
+                        LOG(ERROR) << NAMEOF(create_uws_thread)
+                                   << " exception when deserializing message, disconnecting " << connection.state
                                    << ":" << connection.username << ":exception: " << typeid(e).name() << "-" << e.what();
 
                         connections->erase(key);
@@ -206,10 +207,10 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
             });
 
             h.onConnection([&connections](uWS::WebSocket<uWS::SERVER> *ws, uWS::HttpRequest request) {
-                LOG(WARNING) << "[main:uws] Got a connection";
+                LOG(WARNING) << NAMEOF(create_uws_thread) << " Got a connection";
                 string key = user_connection::AddressToString(ws->getAddress());
                 if(connections->contains(key)) {
-                    LOG(WARNING) << "[main:uws] Connection already present, closing this one";
+                    LOG(WARNING) << NAMEOF(create_uws_thread) << " Connection already present, closing this one";
                     ws->terminate();
                     return;
                 }
@@ -221,34 +222,34 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
                 string key = user_connection::AddressToString(ws->getAddress());
                 connections->erase(key);
 
-                LOG(WARNING) << "[main:uws] Got a disconnect, " << connections->size() << " connections remaining";
+                LOG(WARNING) << NAMEOF(create_uws_thread) << " Got a disconnect, " << connections->size() << " connections remaining";
             });
 
             h.onError([](int type) {
-                LOG(WARNING) << "[main:uws] Got error:" << type;
+                LOG(WARNING) << NAMEOF(create_uws_thread) << " Got error:" << type;
             });
 
             //auto context = uS::TLS::createContext("cert.pem", "key.pem", "test");
             //h.getDefaultGroup<uWS::SERVER>().addAsync();
             if(!h.listen(3000/*, nullptr, 0, group.get()*/)) {
-                LOG(ERROR) << "[main:uws] h.listen failed";
+                LOG(ERROR) << NAMEOF(create_uws_thread) << " h.listen failed";
                 return;
             }
 
-            LOG(INFO) << "[main:uws] starting create_uws_thread";
+            LOG(INFO) << NAMEOF(create_uws_thread) << " starting create_uws_thread";
 
             h.run();
 
             uwsQuit = true;
         } catch (const runtime_error& e) {
-            LOG(ERROR) << "[main:uws] error: " << typeid(e).name() << "-" << e.what();
+            LOG(ERROR) << NAMEOF(create_uws_thread) << " error: " << typeid(e).name() << "-" << e.what();
         }
     });
 }
 
 unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consumer<false>> consumer, shared_ptr<cuckoohash_map<string, user_connection>> connections) {
     if(!consumer) {
-        LOG(ERROR) << "[main:consumer] one of the arguments are null";
+        LOG(ERROR) << NAMEOF(create_consumer_thread) << " one of the arguments are null";
         throw runtime_error("[main:consumer] one of the arguments are null");
     }
 
@@ -264,13 +265,13 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
         server_gateway_msg_dispatcher.register_handler<gateway_register_response_handler>(config);
         server_gateway_msg_dispatcher.register_handler<gateway_chat_send_handler>(config, connections);
 
-        LOG(INFO) << "[main:consumer] starting consumer thread";
+        LOG(INFO) << NAMEOF(create_consumer_thread) << " starting consumer thread";
 
         while (!quit) {
             try {
                 auto msg = consumer->try_get_message(50);
                 if (get<1>(msg)) {
-                    LOG(INFO) << "[main:consumer] Got message from kafka";
+                    LOG(INFO) << NAMEOF(create_consumer_thread) << " Got message from kafka";
 
                     auto id = get<1>(msg)->sender.client_id;
                     auto locked_table = (*connections).lock_table();
@@ -279,7 +280,7 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
                     });
 
                     if (connection == end(locked_table)) {
-                        LOG(DEBUG) << "[main:consumer] Got message for client_id " << id << " but no connection found";
+                        LOG(DEBUG) << NAMEOF(create_consumer_thread) << " Got message for client_id " << id << " but no connection found";
                         continue;
                     }
 
@@ -287,10 +288,10 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
 
                     server_gateway_msg_dispatcher.trigger_handler(msg, make_optional(ref(get<1>(*connection))));
 
-                    LOG(DEBUG) << "done handling message";
+                    LOG(DEBUG) << NAMEOF(create_consumer_thread) << " done handling message";
                 }
             } catch (serialization_exception &e) {
-                cout << "[main:consumer] received exception " << e.what() << endl;
+                LOG(ERROR) << NAMEOF(create_consumer_thread) << " received exception " << e.what() << endl;
             }
         }
     });
@@ -301,7 +302,7 @@ int main() {
     try {
         config = parse_env_file();
     } catch (const std::exception& e) {
-        LOG(ERROR) << "[main] .env file is malformed json.";
+        LOG(ERROR) << NAMEOF(main) << " .env file is malformed json.";
         exit(1);
     }
 
@@ -317,7 +318,7 @@ int main() {
     uWS::Hub h;
 
     try {
-        LOG(INFO) << "[main] starting main thread";
+        LOG(INFO) << NAMEOF(main) << " starting main thread";
         producer->start(config.broker_list);
         auto uws_thread = create_uws_thread(config, h, producer, connections);
         auto consumer_thread = create_consumer_thread(config, consumer, connections);
@@ -326,11 +327,11 @@ int main() {
             try {
                 producer->poll(50);
             } catch (serialization_exception &e) {
-                cout << "[main] received exception " << e.what() << endl;
+                LOG(ERROR) << NAMEOF(main) << " received exception " << e.what();
             }
         }
 
-        LOG(INFO) << "[main] closing";
+        LOG(INFO) << NAMEOF(main) << " closing";
 
         auto loop = h.getLoop();
         auto closeLambda = [](Async *as) -> void {
@@ -344,35 +345,35 @@ int main() {
 
         producer->close();
         consumer->close();
-        LOG(ERROR) << "closed kafka connections";
+        LOG(INFO) << NAMEOF(main) << " closed kafka connections";
 
         auto now = chrono::system_clock::now().time_since_epoch().count();
         auto wait_until = (chrono::system_clock::now() += 2000ms).time_since_epoch().count();
 
         while (!uwsQuit && now < wait_until) {
-            LOG(ERROR) << "waiting for uws";
+            LOG(INFO) << NAMEOF(main) << " waiting for uws";
             this_thread::sleep_for(100ms);
             now = chrono::system_clock::now().time_since_epoch().count();
         }
 
-        LOG(ERROR) << "closing async";
+        LOG(INFO) << NAMEOF(main) << " closing async";
         async.close();
 
-        LOG(ERROR) << "joining consumer thread";
+        LOG(INFO) << NAMEOF(main) << " joining consumer thread";
         consumer_thread->join();
 
         if(!uwsQuit) {
-            LOG(ERROR) << "detaching uws thread";
+            LOG(INFO) << NAMEOF(main) << " detaching uws thread";
             uws_thread->detach();
         } else {
-            LOG(ERROR) << "joining uws thread";
+            LOG(INFO) << NAMEOF(main) << " joining uws thread";
             uws_thread->join();
         }
     } catch (const runtime_error& e) {
-        LOG(ERROR) << "[main] error: " << typeid(e).name() << "-" << e.what();
+        LOG(ERROR) << NAMEOF(main) << " error: " << typeid(e).name() << "-" << e.what();
     }
 
-    LOG(ERROR) << "done";
+    LOG(INFO) << NAMEOF(main) << " goodbye";
 
     return 0;
 }
