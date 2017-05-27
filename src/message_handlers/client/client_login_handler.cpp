@@ -45,9 +45,15 @@ void client_login_handler::handle_message(unique_ptr<binary_message const> const
         return;
     }
 
+    if(connection->get().state == user_connection_state::REGISTERING_OR_LOGGING_IN) {
+        // prevent DoS, verifying password takes about 1 second
+        return;
+    }
+
     if (auto message = dynamic_cast<binary_login_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(client_login_handler::handle_message) << " Got login message from wss";
         connection->get().username = message->username;
+        connection->get().state = user_connection_state::REGISTERING_OR_LOGGING_IN;
         this->_producer->enqueue_message("user_access_control_messages", binary_login_message {
                 {
                     false,

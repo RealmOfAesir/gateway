@@ -25,7 +25,7 @@
 namespace roa {
     enum user_connection_state {
         UNKNOWN,
-        REGISTERING,
+        REGISTERING_OR_LOGGING_IN,
         LOGGED_IN
     };
 

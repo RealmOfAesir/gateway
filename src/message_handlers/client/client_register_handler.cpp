@@ -45,9 +45,15 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
         return;
     }
 
+    if(connection->get().state == user_connection_state::REGISTERING_OR_LOGGING_IN) {
+        // prevent DoS, creating password takes about 1 second
+        return;
+    }
+
     if (auto message = dynamic_cast<binary_register_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(client_register_handler::handle_message) << " Got register message from wss";
         connection->get().username = message->username;
+        connection->get().state = user_connection_state::REGISTERING_OR_LOGGING_IN;
         this->_producer->enqueue_message("user_access_control_messages", binary_register_message {
                 {
                     false,

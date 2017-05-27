@@ -43,7 +43,7 @@ void gateway_chat_send_handler::handle_message(std::unique_ptr<binary_message co
 
         auto locked_table = (*_connections).lock_table();
         if(response_msg->target == "all") {
-            for(auto& conn : locked_table) {
+            for(auto const& conn : locked_table) {
                 if(get<1>(conn).state == user_connection_state::LOGGED_IN) {
                     get<1>(conn).ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
                 }
