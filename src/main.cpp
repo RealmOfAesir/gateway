@@ -35,6 +35,10 @@
 #include <roa_di.h>
 #include <macros.h>
 #include <libcuckoo/cuckoohash_map.hh>
+#include <src/message_handlers/client/client_create_character_handler.h>
+#include <src/message_handlers/client/client_get_characters_handler.h>
+#include <src/message_handlers/client/client_play_character_handler.h>
+#include <src/message_handlers/gateway/gateway_send_map_handler.h>
 #include "src/message_handlers/gateway/gateway_chat_send_handler.h"
 #include "src/message_handlers/gateway/gateway_login_response_handler.h"
 #include "src/message_handlers/gateway/gateway_register_response_handler.h"
@@ -97,13 +101,13 @@ void init_logger(Config const & config) noexcept {
 
 
 
-Config parse_env_file() {
+STD_OPTIONAL<Config> parse_env_file() {
     string env_contents;
     ifstream env(".env");
 
     if(!env) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " no .env file found. Please make one.";
-        exit(1);
+        return {};
     }
 
     env.seekg(0, ios::end);
@@ -119,40 +123,40 @@ Config parse_env_file() {
         config.broker_list = env_json["BROKER_LIST"];
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " BROKER_LIST missing in .env file.";
-        exit(1);
+        return {};
     }
 
     try {
         config.group_id = env_json["GROUP_ID"];
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " GROUP_ID missing in .env file.";
-        exit(1);
+        return {};
     }
 
     try {
         config.server_id = env_json["SERVER_ID"];
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " SERVER_ID missing in .env file.";
-        exit(1);
+        return {};
     }
 
     if(config.server_id == 0) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " SERVER_ID has to be greater than 0";
-        exit(1);
+        return {};
     }
 
     try {
         config.connection_string = env_json["CONNECTION_STRING"];
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " CONNECTION_STRING missing in .env file.";
-        exit(1);
+        return {};
     }
 
     try {
         config.debug_level = env_json["DEBUG_LEVEL"];
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(parse_env_file) << " DEBUG_LEVEL missing in .env file.";
-        exit(1);
+        return {};
     }
 
     return config;
@@ -172,6 +176,9 @@ unique_ptr<thread> create_uws_thread(Config config, uWS::Hub &h, shared_ptr<ikaf
             client_msg_dispatcher.register_handler<client_login_handler>(config, producer);
             client_msg_dispatcher.register_handler<client_register_handler>(config, producer);
             client_msg_dispatcher.register_handler<client_chat_send_handler>(config, producer);
+            client_msg_dispatcher.register_handler<client_create_character_handler>(config, producer);
+            client_msg_dispatcher.register_handler<client_get_characters_handler>(config, producer);
+            client_msg_dispatcher.register_handler<client_play_character_handler>(config, producer);
 
             h.onMessage([&](uWS::WebSocket<uWS::SERVER> *ws, char *recv_msg, size_t length, uWS::OpCode opCode) {
                 LOG(DEBUG) << NAMEOF(create_uws_thread) << " Got message from wss";
@@ -266,6 +273,7 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
         server_gateway_msg_dispatcher.register_handler<gateway_register_response_handler>(config);
         server_gateway_msg_dispatcher.register_handler<gateway_chat_send_handler>(config, connections);
         server_gateway_msg_dispatcher.register_handler<gateway_error_response_handler>(config);
+        server_gateway_msg_dispatcher.register_handler<gateway_send_map_handler>(config);
 
         LOG(INFO) << NAMEOF(create_consumer_thread) << " starting consumer thread";
 
@@ -302,10 +310,14 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
 int main() {
     Config config;
     try {
-        config = parse_env_file();
+        auto config_opt = parse_env_file();
+        if(!config_opt) {
+            return 1;
+        }
+        config = config_opt.value();
     } catch (const std::exception& e) {
         LOG(ERROR) << NAMEOF(main) << " .env file is malformed json.";
-        exit(1);
+        return 1;
     }
 
     init_logger(config);

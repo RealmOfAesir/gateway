@@ -64,6 +64,7 @@ void client_play_character_handler::handle_message(unique_ptr<binary_message con
                         _config.server_id,
                         0 // ANY
                 },
+                connection->get().user_id,
                 message->player_name
         });
     } else {

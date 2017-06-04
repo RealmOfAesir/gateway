@@ -53,7 +53,7 @@ void client_get_characters_handler::handle_message(unique_ptr<binary_message con
                         _config.server_id,
                         0 // ANY
                 },
-                message->username
+                connection->get().user_id
         });
     } else {
         LOG(ERROR) << NAMEOF(client_get_characters_handler::handle_message) << " Couldn't cast message to binary_get_characters_message";
