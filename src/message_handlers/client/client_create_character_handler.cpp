@@ -51,7 +51,7 @@ void client_create_character_handler::handle_message(unique_ptr<binary_message c
                         false,
                         connection->get().connection_id,
                         _config.server_id,
-                        message->sender.server_origin_id
+                        0 // ANY
                 },
                 connection->get().user_id,
                 message->player_name

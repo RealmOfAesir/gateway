@@ -41,7 +41,8 @@ void gateway_login_response_handler::handle_message(std::unique_ptr<binary_messa
 
         connection->get().state = user_connection_state::LOGGED_IN;
         connection->get().admin_status = response_msg->admin_status;
-        json_login_response_message response{{false, 0, 0, 0}, 0};
+        connection->get().user_id = response_msg->user_id;
+        json_login_response_message response{{false, 0, 0, 0}, 0, 0};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     } else {
