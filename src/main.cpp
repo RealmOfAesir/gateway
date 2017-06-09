@@ -265,7 +265,8 @@ unique_ptr<thread> create_consumer_thread(Config config, shared_ptr<ikafka_consu
         consumer->start(config.broker_list, config.group_id, std::vector<std::string>{
                 "server-" + to_string(config.server_id),
                 "chat_messages",
-                "broadcast"});
+                "broadcast"},
+                50);
         message_dispatcher<false> server_gateway_msg_dispatcher;
 
         server_gateway_msg_dispatcher.register_handler<gateway_quit_handler>(&quit);
@@ -333,7 +334,7 @@ int main() {
 
     try {
         LOG(INFO) << NAMEOF(main) << " starting main thread";
-        producer->start(config.broker_list);
+        producer->start(config.broker_list, 50);
         auto uws_thread = create_uws_thread(config, h, producer, connections);
         auto consumer_thread = create_consumer_thread(config, consumer, connections);
 
