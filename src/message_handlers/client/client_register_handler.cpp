@@ -45,6 +45,7 @@ void client_register_handler::handle_message(unique_ptr<binary_message const> co
     }
 
     if(connection->get().state == user_connection_state::REGISTERING_OR_LOGGING_IN) {
+        LOG(TRACE) << NAMEOF(client_register_handler::handle_message) << " dropping message";
         // prevent DoS, creating password takes about 1 second
         return;
     }

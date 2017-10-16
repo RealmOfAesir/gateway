@@ -45,6 +45,7 @@ void client_login_handler::handle_message(unique_ptr<binary_message const> const
     }
 
     if(connection->get().state == user_connection_state::REGISTERING_OR_LOGGING_IN) {
+        LOG(TRACE) << NAMEOF(client_login_handler::handle_message) << " dropping message";
         // prevent DoS, verifying password takes about 1 second
         return;
     }

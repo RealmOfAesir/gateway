@@ -39,6 +39,10 @@ void gateway_get_characters_response_handler::handle_message(std::unique_ptr<bin
     if (auto response_msg = dynamic_cast<binary_get_characters_response_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(gateway_get_characters_response_handler::handle_message) << " Got response message from backend";
 
+        for(auto& plyr : response_msg->players) {
+            connection->get().player_characters.push_back({plyr.player_id, response_msg->sender.server_origin_id, plyr.player_name, plyr.map_name, response_msg->world_name});
+        }
+
         json_get_characters_response_message response{{false, 0, 0, 0}, response_msg->players, response_msg->world_name};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);

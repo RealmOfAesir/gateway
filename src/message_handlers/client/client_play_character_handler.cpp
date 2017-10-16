@@ -45,6 +45,12 @@ void client_play_character_handler::handle_message(unique_ptr<binary_message con
     }
 
     if (auto message = dynamic_cast<binary_play_character_message const *>(msg.get())) {
+
+        LOG(INFO) << "owned players: " << connection->get().player_characters.size();
+        for(auto& plyr : connection->get().player_characters) {
+            LOG(INFO) << plyr.id << " - " << plyr.player_name;
+        }
+
         auto player = find_if(cbegin(connection->get().player_characters), cend(connection->get().player_characters), [&](auto& t) {
            return t.player_name == message->player_name;
         });

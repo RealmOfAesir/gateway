@@ -46,6 +46,8 @@ void client_get_characters_handler::handle_message(unique_ptr<binary_message con
 
     if (auto message = dynamic_cast<binary_get_characters_message const *>(msg.get())) {
         LOG(DEBUG) << NAMEOF(client_get_characters_handler::handle_message) << " Got binary_get_characters_message from wss";
+
+        connection->get().player_characters.clear();
         this->_producer->enqueue_message("world_messages", binary_get_characters_message {
                 {
                         false,
