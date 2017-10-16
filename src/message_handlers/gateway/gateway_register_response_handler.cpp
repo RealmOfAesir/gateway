@@ -42,7 +42,7 @@ void gateway_register_response_handler::handle_message(std::unique_ptr<binary_me
         connection->get().state = user_connection_state::LOGGED_IN;
         connection->get().admin_status = response_msg->admin_status;
         connection->get().user_id = response_msg->user_id;
-        json_register_response_message response{{false, 0, 0, 0}, 0, 0};
+        json_register_response_message response{{false, 0, 0, 0}, response_msg->admin_status, response_msg->user_id};
         auto response_str = response.serialize();
         connection->get().ws->send(response_str.c_str(), response_str.length(), uWS::OpCode::TEXT);
     } else {
